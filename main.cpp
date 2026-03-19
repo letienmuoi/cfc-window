@@ -128,6 +128,18 @@ int main(int argc, char** argv)
         double scale = 640.0 / frame.cols;
         cv::resize(frame, preview, cv::Size(), scale, scale, cv::INTER_AREA);
 
+        // Draw anchor rectangles (red)
+        for (const cv::Rect& r : decoder.getLastAnchors())
+        {
+            cv::Rect scaled(
+                static_cast<int>(r.x      * scale),
+                static_cast<int>(r.y      * scale),
+                std::max(1, static_cast<int>(r.width  * scale)),
+                std::max(1, static_cast<int>(r.height * scale))
+            );
+            cv::rectangle(preview, scaled, cv::Scalar(0, 0, 255), 2);
+        }
+
         // Draw stats overlay
         auto progress = decoder.getProgress();
         std::string statsLine = "Scan:" + std::to_string(DecoderThread::scanCount.load())
@@ -137,18 +149,28 @@ int main(int argc, char** argv)
         cv::putText(preview, statsLine, cv::Point(10, 25),
                     cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 0), 1);
 
-        // Show progress bars if any
+        // Show progress bars if any (horizontal, stacked vertically)
         if (!progress.empty())
         {
-            int barX = 10;
+            const int barMaxW = 200;
+            const int barH    = 10;
+            const int startX  = 10;
+            int barY = preview.rows - 10 - static_cast<int>(progress.size()) * (barH + 4);
             for (double p : progress)
             {
-                int barH = static_cast<int>(100 * p);
+                int fillW = static_cast<int>(barMaxW * p);
+                // Filled portion
+                if (fillW > 0)
+                    cv::rectangle(preview,
+                                  cv::Point(startX, barY),
+                                  cv::Point(startX + fillW, barY + barH),
+                                  cv::Scalar(0, 255, 255), -1);
+                // Border (full width outline)
                 cv::rectangle(preview,
-                              cv::Point(barX, preview.rows - barH - 10),
-                              cv::Point(barX + 8, preview.rows - 10),
-                              cv::Scalar(0, 255, 255), -1);
-                barX += 14;
+                              cv::Point(startX, barY),
+                              cv::Point(startX + barMaxW, barY + barH),
+                              cv::Scalar(255, 255, 255), 1);
+                barY += barH + 4;
             }
         }
 
@@ -162,6 +184,7 @@ int main(int argc, char** argv)
             {
                 completedFiles.insert(f);
                 std::cout << "\n>>> FILE RECEIVED: " << f << " <<<\n" << std::endl;
+                goto done_exit;
             }
         }
 
@@ -190,6 +213,7 @@ int main(int argc, char** argv)
         if (elapsed < delayMs)
             std::this_thread::sleep_for(std::chrono::milliseconds(delayMs - elapsed));
     }
+    done_exit:
 
     std::cout << "\n[cfc-screen-receiver] Shutting down...\n";
     decoder.stop();

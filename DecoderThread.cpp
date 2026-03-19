@@ -38,6 +38,13 @@ int DecoderThread::doExtract(const cv::Mat& mat, cv::Mat& out)
     std::vector<Anchor> anchors = scanner.scan();
     ++scanCount;
 
+    {
+        std::lock_guard<std::mutex> lock(_anchorMutex);
+        _lastAnchors.clear();
+        for (const auto& a : anchors)
+            _lastAnchors.emplace_back(a.x(), a.y(), a.xmax() - a.x(), a.ymax() - a.y());
+    }
+
     if (anchors.size() < 4)
         return Extractor::FAILURE;
 
@@ -107,4 +114,10 @@ std::vector<std::string> DecoderThread::getDone() const
 std::vector<double> DecoderThread::getProgress() const
 {
     return _writer.get_progress();
+}
+
+std::vector<cv::Rect> DecoderThread::getLastAnchors() const
+{
+    std::lock_guard<std::mutex> lock(_anchorMutex);
+    return _lastAnchors;
 }

@@ -43,6 +43,7 @@ public:
     unsigned filesInFlight()   const;
     std::vector<std::string> getDone() const;
     std::vector<double>      getProgress() const;
+    std::vector<cv::Rect>    getLastAnchors() const;
 
 private:
     int doExtract(const cv::Mat& mat, cv::Mat& out);
@@ -53,4 +54,7 @@ private:
     turbo::thread_pool _pool;
     concurrent_fountain_decoder_sink _writer;
     std::string _outputPath;
+
+    mutable std::mutex       _anchorMutex;
+    std::vector<cv::Rect>    _lastAnchors;
 };
